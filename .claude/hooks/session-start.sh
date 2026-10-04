@@ -7,6 +7,12 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
 
+# Archify skill (.claude/skills/archify): point its browser-check gate at the
+# preinstalled Playwright Chromium.
+if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -x /opt/pw-browsers/chromium ]; then
+  echo 'export ARCHIFY_CHROME=/opt/pw-browsers/chromium' >> "$CLAUDE_ENV_FILE"
+fi
+
 NODE_PREFIX=/opt/node24
 NODE_VERSION="${PAPERCLIP_NODE_VERSION:-24}"
 PAPERCLIP_VERSION="${PAPERCLIP_VERSION:-latest}"
