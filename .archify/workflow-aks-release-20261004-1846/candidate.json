@@ -1,0 +1,261 @@
+{
+  "type": "workflow",
+  "meta": {
+    "id": "aks-platform-release",
+    "title": "AKS Shared Platform Release Process — As-Is",
+    "subtitle": "Current release management flow across ~90 clusters in 3 environments",
+    "owner": "Platform Engineering & SRE",
+    "quality_profile": "showcase",
+    "output": "workflow-aks-release-20261004-1846/aks-release.html"
+  },
+  "boundaries": [
+    {
+      "id": "prod-owner",
+      "label": "Product Owner",
+      "kind": "role",
+      "color": "#6D28D9"
+    },
+    {
+      "id": "platform-eng",
+      "label": "Platform Engineering",
+      "kind": "team",
+      "color": "#0369A1"
+    },
+    {
+      "id": "sre-team",
+      "label": "SRE",
+      "kind": "team",
+      "color": "#7C3AED"
+    },
+    {
+      "id": "change-mgmt",
+      "label": "Change Management",
+      "kind": "process",
+      "color": "#DC2626"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "backlog-planning",
+      "label": "Backlog & Roadmap Planning",
+      "boundary": "prod-owner",
+      "kind": "start",
+      "icon": "document"
+    },
+    {
+      "id": "sprint-development",
+      "label": "2-Week Sprint Development",
+      "boundary": "platform-eng",
+      "kind": "process",
+      "icon": "code",
+      "details": "Build platform components: cert-manager, NAP, KRO, etc."
+    },
+    {
+      "id": "basic-testing",
+      "label": "Basic Helm Linting",
+      "boundary": "platform-eng",
+      "kind": "gate",
+      "icon": "check",
+      "details": "Automated testing limited to Helm linting only"
+    },
+    {
+      "id": "no-integration-test",
+      "label": "No Formal Integration Test",
+      "boundary": "platform-eng",
+      "kind": "issue",
+      "icon": "warning",
+      "details": "Engineering cluster available but no formal test process"
+    },
+    {
+      "id": "helm-chart-nexus",
+      "label": "Deliver to Nexus",
+      "boundary": "platform-eng",
+      "kind": "process",
+      "icon": "package",
+      "details": "Helm charts stored in Nexus, source in GitLab"
+    },
+    {
+      "id": "sre-rollout-plan",
+      "label": "SRE Plans Rollout",
+      "boundary": "sre-team",
+      "kind": "process",
+      "icon": "clipboard"
+    },
+    {
+      "id": "dev-change-approval",
+      "label": "Change Approval — DEV",
+      "boundary": "change-mgmt",
+      "kind": "gate",
+      "icon": "shield"
+    },
+    {
+      "id": "dev-deployment",
+      "label": "Deploy to DEV (all ~90 clusters)",
+      "boundary": "sre-team",
+      "kind": "process",
+      "icon": "deploy",
+      "details": "Sequential deployment via GitOps (AKS Flux)"
+    },
+    {
+      "id": "preprod-change-approval",
+      "label": "Change Approval — PRE-PROD",
+      "boundary": "change-mgmt",
+      "kind": "gate",
+      "icon": "shield"
+    },
+    {
+      "id": "preprod-deployment",
+      "label": "Deploy to PRE-PROD (all ~90 clusters)",
+      "boundary": "sre-team",
+      "kind": "process",
+      "icon": "deploy",
+      "details": "Sequential deployment via GitOps (AKS Flux)"
+    },
+    {
+      "id": "prod-change-approval",
+      "label": "Change Approval — PROD",
+      "boundary": "change-mgmt",
+      "kind": "gate",
+      "icon": "shield"
+    },
+    {
+      "id": "prod-deployment",
+      "label": "Deploy to PROD (all ~90 clusters)",
+      "boundary": "sre-team",
+      "kind": "process",
+      "icon": "deploy",
+      "details": "Sequential deployment via GitOps (AKS Flux)"
+    },
+    {
+      "id": "failure-detect-prod",
+      "label": "Failure Detected in PROD",
+      "boundary": "sre-team",
+      "kind": "issue",
+      "icon": "alert",
+      "details": "Most failures only surface here (not caught earlier)"
+    },
+    {
+      "id": "sre-escalate",
+      "label": "SRE Escalates to Platform Engineering",
+      "boundary": "sre-team",
+      "kind": "process",
+      "icon": "alert"
+    },
+    {
+      "id": "hotfix-dev",
+      "label": "Hotfix Development",
+      "boundary": "platform-eng",
+      "kind": "process",
+      "icon": "code",
+      "details": "Days to weeks turnaround time"
+    },
+    {
+      "id": "hotfix-delivery",
+      "label": "Hotfix to Nexus",
+      "boundary": "platform-eng",
+      "kind": "process",
+      "icon": "package"
+    },
+    {
+      "id": "cycle-complete",
+      "label": "Release Cycle Complete",
+      "boundary": "sre-team",
+      "kind": "end",
+      "icon": "checkmark",
+      "details": "Cycle takes months from development to production"
+    }
+  ],
+  "relationships": [
+    {
+      "from": "backlog-planning",
+      "to": "sprint-development",
+      "label": "Define sprint work"
+    },
+    {
+      "from": "sprint-development",
+      "to": "basic-testing",
+      "label": "Complete coding"
+    },
+    {
+      "from": "basic-testing",
+      "to": "no-integration-test",
+      "label": "Limited coverage"
+    },
+    {
+      "from": "no-integration-test",
+      "to": "helm-chart-nexus",
+      "label": "Proceed to release"
+    },
+    {
+      "from": "basic-testing",
+      "to": "helm-chart-nexus",
+      "label": "Pass linting"
+    },
+    {
+      "from": "helm-chart-nexus",
+      "to": "sre-rollout-plan",
+      "label": "Request rollout"
+    },
+    {
+      "from": "sre-rollout-plan",
+      "to": "dev-change-approval",
+      "label": "Submit to change board"
+    },
+    {
+      "from": "dev-change-approval",
+      "to": "dev-deployment",
+      "label": "Approval granted"
+    },
+    {
+      "from": "dev-deployment",
+      "to": "preprod-change-approval",
+      "label": "DEV complete"
+    },
+    {
+      "from": "preprod-change-approval",
+      "to": "preprod-deployment",
+      "label": "Approval granted"
+    },
+    {
+      "from": "preprod-deployment",
+      "to": "prod-change-approval",
+      "label": "PRE-PROD complete"
+    },
+    {
+      "from": "prod-change-approval",
+      "to": "prod-deployment",
+      "label": "Approval granted"
+    },
+    {
+      "from": "prod-deployment",
+      "to": "failure-detect-prod",
+      "label": "Monitor"
+    },
+    {
+      "from": "failure-detect-prod",
+      "to": "sre-escalate",
+      "label": "Issue found"
+    },
+    {
+      "from": "sre-escalate",
+      "to": "hotfix-dev",
+      "label": "Escalate"
+    },
+    {
+      "from": "hotfix-dev",
+      "to": "hotfix-delivery",
+      "label": "Hotfix ready"
+    },
+    {
+      "from": "hotfix-delivery",
+      "to": "sre-rollout-plan",
+      "label": "New release cycle"
+    },
+    {
+      "from": "prod-deployment",
+      "to": "cycle-complete",
+      "label": "No failures"
+    }
+  ],
+  "description": "Current as-is release process for shared AKS platform components. Shows sequential promotion through DEV → PRE-PROD → PROD with change management gates, limited testing quality gates, and a feedback loop where failures surface only in production, requiring escalation back to Platform Engineering for hotfixes (days-to-weeks turnaround)."
+}

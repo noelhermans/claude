@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AKS Shared Platform Release Process — As-Is</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f8f9fa;
+            padding: 2rem;
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+            color: #0f172a;
+        }
+
+        .subtitle {
+            color: #64748b;
+            font-size: 0.95rem;
+        }
+
+        .diagram-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .legend-label {
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .analysis {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .analysis h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: #0f172a;
+        }
+
+        .issues {
+            display: grid;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .issue {
+            padding: 0.75rem;
+            background: #fef2f2;
+            border-left: 3px solid #dc2626;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .issue-title {
+            font-weight: 600;
+            color: #991b1b;
+        }
+
+        .issue-detail {
+            color: #7c2d12;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .metric {
+            padding: 1rem;
+            background: #f0f9ff;
+            border-radius: 6px;
+            border-left: 3px solid #0369a1;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: #0c4a6e;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 1.2rem;
+            color: #0369a1;
+            font-weight: 700;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: #0f172a;
+                color: #e2e8f0;
+            }
+
+            .diagram-container,
+            .legend,
+            .analysis {
+                background: #1e293b;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+
+            h1, .analysis h2 {
+                color: #f1f5f9;
+            }
+
+            .subtitle {
+                color: #94a3b8;
+            }
+
+            .issue {
+                background: #7f1d1d;
+                border-left-color: #ef4444;
+            }
+
+            .issue-title {
+                color: #fecaca;
+            }
+
+            .issue-detail {
+                color: #fca5a5;
+            }
+
+            .metric {
+                background: #0c2d4a;
+                border-left-color: #0ea5e9;
+            }
+
+            .metric-label {
+                color: #0ea5e9;
+            }
+
+            .metric-value {
+                color: #38bdf8;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AKS Shared Platform Release Process</h1>
+            <p class="subtitle">Current as-is release management flow for ~90 clusters across 3 environments (DEV, PRE-PROD, PROD)</p>
+        </header>
+
+        <div class="diagram-container">
+            <svg viewBox="0 0 1200 1600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <style>
+                        .process-node { fill: #0369a1; stroke: #0c4a6e; stroke-width: 2; }
+                        .gate-node { fill: #dc2626; stroke: #991b1b; stroke-width: 2; }
+                        .issue-node { fill: #f59e0b; stroke: #b45309; stroke-width: 2; }
+                        .role-node { fill: #6d28d9; stroke: #5b21b6; stroke-width: 2; }
+                        .text-label { font-size: 12px; font-weight: 600; fill: white; text-anchor: middle; }
+                        .boundary-line { stroke: #cbd5e1; stroke-width: 1; stroke-dasharray: 5,5; }
+                        .arrow { fill: none; stroke: #475569; stroke-width: 2; marker-end: url(#arrowhead); }
+                        .arrow-feedback { fill: none; stroke: #dc2626; stroke-width: 2; stroke-dasharray: 5,5; marker-end: url(#arrowhead-feedback); }
+                    </style>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <polygon points="0 0, 10 3, 0 6" fill="#475569" />
+                    </marker>
+                    <marker id="arrowhead-feedback" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <polygon points="0 0, 10 3, 0 6" fill="#dc2626" />
+                    </marker>
+                </defs>
+
+                <!-- Boundary labels -->
+                <text x="80" y="30" style="font-size: 14px; font-weight: 700; fill: #6d28d9;">PRODUCT OWNER</text>
+                <line class="boundary-line" x1="40" y1="50" x2="220" y2="50" />
+
+                <text x="350" y="30" style="font-size: 14px; font-weight: 700; fill: #0369a1;">PLATFORM ENGINEERING</text>
+                <line class="boundary-line" x1="250" y1="50" x2="700" y2="50" />
+
+                <text x="900" y="30" style="font-size: 14px; font-weight: 700; fill: #7c3aed;">SRE TEAM</text>
+                <line class="boundary-line" x1="800" y1="50" x2="1000" y2="50" />
+
+                <text x="1100" y="30" style="font-size: 14px; font-weight: 700; fill: #dc2626;">CHANGE MGMT</text>
+                <line class="boundary-line" x1="1040" y1="50" x2="1160" y2="50" />
+
+                <!-- DEVELOPMENT PHASE -->
+                <text x="600" y="100" style="font-size: 16px; font-weight: 700; fill: #334155; text-anchor: middle;">DEVELOPMENT PHASE</text>
+
+                <!-- Backlog Planning -->
+                <rect class="role-node" x="40" y="120" width="160" height="60" rx="4"/>
+                <text class="text-label" x="120" y="155">Backlog &amp;</text>
+                <text class="text-label" x="120" y="170">Roadmap Planning</text>
+
+                <!-- Sprint Development -->
+                <rect class="process-node" x="250" y="120" width="160" height="60" rx="4"/>
+                <text class="text-label" x="330" y="150">2-Week Sprint</text>
+                <text class="text-label" x="330" y="165">Development</text>
+
+                <!-- Basic Testing -->
+                <rect class="gate-node" x="460" y="120" width="140" height="60" rx="4"/>
+                <text class="text-label" x="530" y="150">Basic Helm</text>
+                <text class="text-label" x="530" y="165">Linting</text>
+
+                <!-- No Integration Test -->
+                <rect class="issue-node" x="650" y="120" width="140" height="60" rx="4"/>
+                <text class="text-label" x="720" y="140">No Formal</text>
+                <text class="text-label" x="720" y="155">Integration</text>
+                <text class="text-label" x="720" y="170">Testing</text>
+
+                <!-- Helm to Nexus -->
+                <rect class="process-node" x="840" y="120" width="140" height="60" rx="4"/>
+                <text class="text-label" x="910" y="150">Deliver to</text>
+                <text class="text-label" x="910" y="165">Nexus</text>
+
+                <!-- Arrows for dev phase -->
+                <path class="arrow" d="M 200 150 L 250 150"/>
+                <path class="arrow" d="M 410 150 L 460 150"/>
+                <path class="arrow" d="M 600 150 L 650 150"/>
+                <path class="arrow" d="M 790 150 L 840 150"/>
+
+                <!-- RELEASE PHASE -->
+                <text x="600" y="240" style="font-size: 16px; font-weight: 700; fill: #334155; text-anchor: middle;">PROMOTION &amp; ROLLOUT PHASE</text>
+
+                <!-- SRE Rollout Plan -->
+                <rect class="process-node" x="250" y="280" width="160" height="60" rx="4"/>
+                <text class="text-label" x="330" y="310">SRE Plans</text>
+                <text class="text-label" x="330" y="325">Rollout</text>
+
+                <!-- Arrow from Nexus -->
+                <path class="arrow" d="M 910 180 L 330 280"/>
+
+                <!-- SEQUENTIAL PROMOTIONS -->
+                <!-- DEV Change Approval -->
+                <rect class="gate-node" x="1040" y="280" width="120" height="60" rx="4"/>
+                <text class="text-label" x="1100" y="315">Change</text>
+                <text class="text-label" x="1100" y="325">Approval</text>
+                <text class="text-label" x="1100" y="335">DEV</text>
+
+                <!-- DEV Deployment -->
+                <rect class="process-node" x="840" y="280" width="140" height="60" rx="4"/>
+                <text class="text-label" x="910" y="310">Deploy to DEV</text>
+                <text class="text-label" x="910" y="325">(~90 clusters)</text>
+
+                <!-- Arrow to DEV -->
+                <path class="arrow" d="M 410 310 L 840 310"/>
+                <path class="arrow" d="M 410 320 L 420 320 L 420 260 L 1040 260 L 1040 280"/>
+
+                <!-- Arrow: DEV approval to deployment -->
+                <path class="arrow" d="M 1040 310 L 980 310"/>
+
+                <!-- PRE-PROD Change Approval -->
+                <rect class="gate-node" x="1040" y="420" width="120" height="60" rx="4"/>
+                <text class="text-label" x="1100" y="445">Change</text>
+                <text class="text-label" x="1100" y="455">Approval</text>
+                <text class="text-label" x="1100" y="465">PRE-PROD</text>
+
+                <!-- PRE-PROD Deployment -->
+                <rect class="process-node" x="840" y="420" width="140" height="60" rx="4"/>
+                <text class="text-label" x="910" y="450">Deploy to</text>
+                <text class="text-label" x="910" y="460">PRE-PROD</text>
+                <text class="text-label" x="910" y="470">(~90 clusters)</text>
+
+                <!-- Arrow DEV to PRE-PROD -->
+                <path class="arrow" d="M 910 340 L 910 420"/>
+                <path class="arrow" d="M 980 450 L 1040 450"/>
+                <path class="arrow" d="M 1040 390 L 1040 420"/>
+
+                <!-- PROD Change Approval -->
+                <rect class="gate-node" x="1040" y="560" width="120" height="60" rx="4"/>
+                <text class="text-label" x="1100" y="585">Change</text>
+                <text class="text-label" x="1100" y="595">Approval</text>
+                <text class="text-label" x="1100" y="605">PROD</text>
+
+                <!-- PROD Deployment -->
+                <rect class="process-node" x="840" y="560" width="140" height="60" rx="4"/>
+                <text class="text-label" x="910" y="590">Deploy to PROD</text>
+                <text class="text-label" x="910" y="600">(~90 clusters)</text>
+
+                <!-- Arrow PRE-PROD to PROD -->
+                <path class="arrow" d="M 910 480 L 910 560"/>
+                <path class="arrow" d="M 980 590 L 1040 590"/>
+                <path class="arrow" d="M 1040 530 L 1040 560"/>
+
+                <!-- FAILURE &amp; HOTFIX PHASE -->
+                <text x="600" y="720" style="font-size: 16px; font-weight: 700; fill: #334155; text-anchor: middle;">FAILURE &amp; HOTFIX PHASE</text>
+
+                <!-- Failure Detection -->
+                <rect class="issue-node" x="750" y="760" width="160" height="60" rx="4"/>
+                <text class="text-label" x="830" y="790">Failure Detected</text>
+                <text class="text-label" x="830" y="805">in PROD</text>
+
+                <!-- Arrow from PROD deployment -->
+                <path class="arrow" d="M 910 620 L 830 760"/>
+
+                <!-- SRE Escalate -->
+                <rect class="process-node" x="550" y="760" width="140" height="60" rx="4"/>
+                <text class="text-label" x="620" y="785">SRE</text>
+                <text class="text-label" x="620" y="800">Escalates</text>
+
+                <!-- Arrow: Failure to Escalation -->
+                <path class="arrow-feedback" d="M 750 790 L 690 790"/>
+
+                <!-- Hotfix Development -->
+                <rect class="process-node" x="300" y="760" width="160" height="60" rx="4"/>
+                <text class="text-label" x="380" y="785">Hotfix</text>
+                <text class="text-label" x="380" y="800">Development</text>
+
+                <!-- Arrow: Escalation to Hotfix -->
+                <path class="arrow-feedback" d="M 550 790 L 460 790"/>
+
+                <!-- Hotfix to Nexus -->
+                <rect class="process-node" x="50" y="760" width="160" height="60" rx="4"/>
+                <text class="text-label" x="130" y="790">Hotfix</text>
+                <text class="text-label" x="130" y="805">to Nexus</text>
+
+                <!-- Arrow: Hotfix dev to Nexus -->
+                <path class="arrow" d="M 300 790 L 210 790"/>
+
+                <!-- Feedback loop back to SRE -->
+                <path class="arrow-feedback" d="M 130 820 L 130 900 L 330 900 L 330 320"/>
+                <text style="font-size: 11px; fill: #dc2626; font-weight: 600;" x="200" y="895">New release cycle</text>
+                <text style="font-size: 11px; fill: #dc2626; font-weight: 600;" x="200" y="910">(Days to weeks)</text>
+
+                <!-- Metrics annotations -->
+                <text style="font-size: 10px; fill: #dc2626; font-weight: 600;" x="830" y="830">Critical issue</text>
+                <text style="font-size: 10px; fill: #dc2626; font-weight: 600;" x="830" y="845">Most failures found here</text>
+
+                <text style="font-size: 10px; fill: #0369a1; font-weight: 600;" x="380" y="830">Days-to-weeks</text>
+                <text style="font-size: 10px; fill: #0369a1; font-weight: 600;" x="380" y="845">turnaround</text>
+            </svg>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #6d28d9;"></div>
+                <span class="legend-label">Product Owner Role</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #0369a1;"></div>
+                <span class="legend-label">Platform Engineering / SRE Process</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #dc2626;"></div>
+                <span class="legend-label">Change Management Gate</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f59e0b;"></div>
+                <span class="legend-label">Quality Gap / Failure Point</span>
+            </div>
+            <div class="legend-item">
+                <span style="color: #dc2626; font-weight: 600;">↭ ↭ ↭</span>
+                <span class="legend-label">Feedback Loop (escalation/hotfix)</span>
+            </div>
+        </div>
+
+        <div class="analysis">
+            <h2>Key Issues in Current Process</h2>
+
+            <div class="issues">
+                <div class="issue">
+                    <div class="issue-title">⚠ Limited Testing Quality Gates</div>
+                    <div class="issue-detail">Only basic Helm linting; no formal integration testing or multi-component validation before release</div>
+                </div>
+                <div class="issue">
+                    <div class="issue-title">⚠ Late Failure Detection</div>
+                    <div class="issue-detail">Most failures only discovered in PROD after rolling out to all ~90 clusters sequentially</div>
+                </div>
+                <div class="issue">
+                    <div class="issue-title">⚠ Slow Hotfix Cycle</div>
+                    <div class="issue-detail">Escalation back to Platform Engineering takes days to weeks; SRE must wait for fixes</div>
+                </div>
+                <div class="issue">
+                    <div class="issue-title">⚠ Complex Change Process</div>
+                    <div class="issue-detail">Three sequential change management approvals (DEV, PRE-PROD, PROD) add overhead</div>
+                </div>
+                <div class="issue">
+                    <div class="issue-title">⚠ Long Release Cycle</div>
+                    <div class="issue-detail">Months from development sprint to production deployment across all clusters</div>
+                </div>
+                <div class="issue">
+                    <div class="issue-title">⚠ Poor Release Documentation</div>
+                    <div class="issue-detail">SRE reports rollouts are poorly documented and error-prone, with steps easily overlooked</div>
+                </div>
+            </div>
+
+            <h2 style="margin-top: 2rem;">Process Metrics</h2>
+            <div class="metrics">
+                <div class="metric">
+                    <div class="metric-label">Release Cycle Time</div>
+                    <div class="metric-value">Months</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Failure Discovery Point</div>
+                    <div class="metric-value">Production</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Hotfix Turnaround</div>
+                    <div class="metric-value">Days–Weeks</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Cluster Scale</div>
+                    <div class="metric-value">~90</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Test Coverage</div>
+                    <div class="metric-value">Linting Only</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Change Gates</div>
+                    <div class="metric-value">3 (DEV/PRE/PROD)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

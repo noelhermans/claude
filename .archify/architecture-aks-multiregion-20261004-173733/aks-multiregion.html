@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Region AKS Landing Zone with GitOps</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-light: #ffffff;
+            --bg-dark: #1a1a1a;
+            --text-light: #333333;
+            --text-dark: #e0e0e0;
+            --border-light: #cccccc;
+            --border-dark: #444444;
+            --accent: #0078d4;
+            --accent-secondary: #107c10;
+            --warning: #ffd700;
+            --error: #dc3545;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: var(--bg-dark);
+                color: var(--text-dark);
+            }
+            .controls, .legend, .view-selector {
+                background-color: #2a2a2a;
+                border-color: var(--border-dark);
+            }
+            svg {
+                background-color: var(--bg-dark);
+            }
+            button {
+                background-color: #333333;
+                border-color: var(--border-dark);
+                color: var(--text-dark);
+            }
+            button:hover {
+                background-color: #444444;
+            }
+            .info-panel {
+                background-color: #2a2a2a;
+                border-color: var(--border-dark);
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-light);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--accent) 0%, #1084d7 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .controls {
+            width: 280px;
+            background-color: var(--bg-light);
+            border-right: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .controls h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        .controls h3:first-child {
+            margin-top: 0;
+        }
+
+        .view-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+
+        button {
+            padding: 10px;
+            border: 1px solid var(--border-light);
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: var(--bg-light);
+            color: var(--text-light);
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+
+        button:hover {
+            background-color: #f0f0f0;
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        button.active {
+            background-color: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .legend {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: auto;
+            font-size: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+
+        .canvas-wrapper {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: linear-gradient(135deg, rgba(0,120,212,0.02) 0%, rgba(16,124,16,0.02) 100%);
+        }
+
+        svg {
+            background-color: var(--bg-light);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .node {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .node rect, .node circle, .node ellipse {
+            fill: white;
+            stroke: var(--accent);
+            stroke-width: 2;
+            transition: all 0.2s ease;
+        }
+
+        .node.compute rect {
+            fill: #e3f2fd;
+            stroke: #0078d4;
+        }
+
+        .node.platform rect {
+            fill: #f3e5f5;
+            stroke: #9c27b0;
+        }
+
+        .node.storage rect {
+            fill: #fff3e0;
+            stroke: #ff9800;
+        }
+
+        .node.security rect {
+            fill: #ffebee;
+            stroke: #dc3545;
+        }
+
+        .node.data rect {
+            fill: #e8f5e9;
+            stroke: #107c10;
+        }
+
+        .node.infrastructure rect {
+            fill: #ede7f6;
+            stroke: #673ab7;
+        }
+
+        .node.boundary rect {
+            fill: none;
+            stroke: #666;
+            stroke-dasharray: 5,5;
+            stroke-width: 2;
+        }
+
+        .node text {
+            font-size: 12px;
+            font-weight: 500;
+            fill: var(--text-light);
+            pointer-events: none;
+        }
+
+        .node:hover rect {
+            filter: drop-shadow(0 0 5px rgba(0,120,212,0.5));
+            stroke-width: 3;
+        }
+
+        .edge {
+            fill: none;
+            stroke: #999;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+            transition: all 0.2s ease;
+        }
+
+        .edge.control {
+            stroke: #ff9800;
+            stroke-dasharray: 4,4;
+        }
+
+        .edge.deployment {
+            stroke: #0078d4;
+        }
+
+        .edge.data {
+            stroke: #107c10;
+        }
+
+        .edge.infrastructure {
+            stroke: #673ab7;
+        }
+
+        .edge.security {
+            stroke: #dc3545;
+        }
+
+        .edge.policy {
+            stroke: #ff6b6b;
+            stroke-dasharray: 3,3;
+        }
+
+        .edge.hover {
+            stroke-width: 3;
+            filter: drop-shadow(0 0 3px rgba(0,120,212,0.6));
+        }
+
+        .edge-label {
+            font-size: 10px;
+            fill: #666;
+            font-weight: 500;
+        }
+
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: white;
+            border: 1px solid var(--border-light);
+            border-radius: 4px;
+            padding: 15px;
+            min-width: 250px;
+            max-width: 350px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: none;
+            z-index: 100;
+        }
+
+        .info-panel.visible {
+            display: block;
+        }
+
+        .info-panel h4 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--accent);
+        }
+
+        .info-panel p {
+            font-size: 12px;
+            line-height: 1.5;
+            margin-bottom: 6px;
+        }
+
+        .info-panel p:last-child {
+            margin-bottom: 0;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            color: #999;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        footer {
+            background-color: #f5f5f5;
+            border-top: 1px solid var(--border-light);
+            padding: 10px 15px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🏗️ Multi-Region AKS Landing Zone with GitOps</h1>
+        <p>Enterprise-grade Azure infrastructure spanning multiple regions with GitOps-driven cluster management</p>
+    </header>
+
+    <div class="container">
+        <div class="controls">
+            <h3>Views</h3>
+            <div class="view-selector">
+                <button class="active" onclick="switchView('full-stack')">Full Stack</button>
+                <button onclick="switchView('gitops-flow')">GitOps Pipeline</button>
+                <button onclick="switchView('networking')">Networking & Traffic</button>
+                <button onclick="switchView('security')">Security & Compliance</button>
+            </div>
+
+            <h3>Legend</h3>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #e3f2fd; border: 1px solid #0078d4;"></div>
+                    <span>Compute (AKS)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #f3e5f5; border: 1px solid #9c27b0;"></div>
+                    <span>Platform Services</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #fff3e0; border: 1px solid #ff9800;"></div>
+                    <span>Storage</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ffebee; border: 1px solid #dc3545;"></div>
+                    <span>Security</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #e8f5e9; border: 1px solid #107c10;"></div>
+                    <span>Data & Source</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ede7f6; border: 1px solid #673ab7;"></div>
+                    <span>Infrastructure</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="canvas-wrapper">
+            <svg id="canvas" width="1400" height="900" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <polygon points="0 0, 10 3, 0 6" fill="#999" />
+                    </marker>
+                </defs>
+            </svg>
+
+            <div id="infoPanel" class="info-panel">
+                <span class="close-btn" onclick="closeInfo()">×</span>
+                <h4 id="infoTitle"></h4>
+                <p id="infoDesc"></p>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        Multi-region AKS landing zone with GitOps reconciliation • Click nodes to learn more • Azure • Kubernetes • DevOps
+    </footer>
+
+    <script>
+        const architecture = {
+            "full-stack": {
+                nodes: [
+                    { id: "azure-subscription", label: "Azure Subscription", type: "boundary", x: 50, y: 50, width: 1300, height: 800, semantic: "boundary" },
+                    { id: "governance", label: "Management Group & Policies", type: "container", x: 70, y: 70, width: 200, height: 150, semantic: "platform" },
+                    { id: "acr", label: "Container Registry", type: "box", x: 300, y: 70, width: 180, height: 80, semantic: "storage" },
+                    { id: "git-repo", label: "Git Repository", type: "box", x: 520, y: 70, width: 180, height: 80, semantic: "data" },
+                    { id: "traffic-mgmt", label: "Traffic Manager", type: "box", x: 740, y: 70, width: 180, height: 80, semantic: "platform" },
+                    { id: "keyvault", label: "Key Vault", type: "box", x: 960, y: 70, width: 180, height: 80, semantic: "security" },
+                    { id: "monitoring", label: "Azure Monitor", type: "box", x: 1180, y: 70, width: 170, height: 80, semantic: "platform" },
+
+                    { id: "primary-region", label: "Primary Region (East US)", type: "boundary", x: 70, y: 240, width: 370, height: 580, semantic: "infrastructure" },
+                    { id: "primary-vnet", label: "VNet & Subnets", type: "box", x: 90, y: 260, width: 330, height: 60, semantic: "infrastructure" },
+                    { id: "primary-aks", label: "AKS Cluster", type: "box", x: 90, y: 340, width: 330, height: 200, semantic: "compute" },
+                    { id: "primary-gitops", label: "Flux GitOps", type: "box", x: 95, y: 350, width: 150, height: 50, semantic: "platform" },
+                    { id: "primary-nodepools", label: "Node Pools", type: "box", x: 95, y: 410, width: 150, height: 50, semantic: "compute" },
+                    { id: "primary-csi", label: "CSI Drivers", type: "box", x: 255, y: 410, width: 150, height: 50, semantic: "platform" },
+
+                    { id: "secondary-region", label: "Secondary Region (West US)", type: "boundary", x: 470, y: 240, width: 370, height: 580, semantic: "infrastructure" },
+                    { id: "secondary-vnet", label: "VNet & Subnets", type: "box", x: 490, y: 260, width: 330, height: 60, semantic: "infrastructure" },
+                    { id: "secondary-aks", label: "AKS Cluster", type: "box", x: 490, y: 340, width: 330, height: 200, semantic: "compute" },
+                    { id: "secondary-gitops", label: "Flux GitOps", type: "box", x: 495, y: 350, width: 150, height: 50, semantic: "platform" },
+                    { id: "secondary-nodepools", label: "Node Pools", type: "box", x: 495, y: 410, width: 150, height: 50, semantic: "compute" },
+
+                    { id: "tertiary-region", label: "DR Region (Central US)", type: "boundary", x: 870, y: 240, width: 370, height: 580, semantic: "infrastructure" },
+                    { id: "tertiary-vnet", label: "VNet & Subnets", type: "box", x: 890, y: 260, width: 330, height: 60, semantic: "infrastructure" },
+                    { id: "tertiary-aks", label: "AKS Cluster", type: "box", x: 890, y: 340, width: 330, height: 100, semantic: "compute" },
+                    { id: "tertiary-gitops", label: "Flux GitOps", type: "box", x: 895, y: 350, width: 150, height: 50, semantic: "platform" },
+
+                    { id: "backup", label: "Azure Backup", type: "box", x: 70, y: 840, width: 350, height: 50, semantic: "storage" },
+                    { id: "nsg", label: "Network Security", type: "box", x: 470, y: 840, width: 350, height: 50, semantic: "security" },
+                    { id: "apigw", label: "API Gateway", type: "box", x: 870, y: 840, width: 350, height: 50, semantic: "platform" },
+                ],
+                edges: [
+                    { from: "git-repo", to: ["primary-gitops", "secondary-gitops", "tertiary-gitops"], label: "syncs", type: "control" },
+                    { from: ["primary-gitops", "secondary-gitops", "tertiary-gitops"], to: ["primary-aks", "secondary-aks", "tertiary-aks"], label: "reconciles", type: "deployment" },
+                    { from: ["primary-nodepools", "secondary-nodepools"], to: "acr", label: "pull images", type: "data" },
+                    { from: "traffic-mgmt", to: ["primary-aks", "secondary-aks"], label: "routes", type: "infrastructure" },
+                    { from: "monitoring", to: ["primary-aks", "secondary-aks", "tertiary-aks"], label: "observes", type: "data" },
+                    { from: ["primary-aks", "secondary-aks", "tertiary-aks"], to: "keyvault", label: "RBAC", type: "security" },
+                    { from: ["primary-aks", "secondary-aks"], to: "backup", label: "backups PV", type: "data" },
+                    { from: "governance", to: ["primary-aks", "secondary-aks", "tertiary-aks"], label: "enforces", type: "policy" },
+                ]
+            },
+            "gitops-flow": {
+                nodes: [
+                    { id: "dev-team", label: "Development Team", type: "box", x: 50, y: 100, width: 150, height: 80, semantic: "data" },
+                    { id: "git-repo", label: "Git Repository", type: "box", x: 250, y: 100, width: 150, height: 80, semantic: "data" },
+                    { id: "primary-gitops", label: "Flux Controller (Primary)", type: "box", x: 50, y: 300, width: 180, height: 100, semantic: "platform" },
+                    { id: "secondary-gitops", label: "Flux Controller (Secondary)", type: "box", x: 300, y: 300, width: 180, height: 100, semantic: "platform" },
+                    { id: "tertiary-gitops", label: "Flux Controller (DR)", type: "box", x: 550, y: 300, width: 180, height: 100, semantic: "platform" },
+                    { id: "primary-aks", label: "Primary AKS Cluster", type: "box", x: 50, y: 500, width: 180, height: 100, semantic: "compute" },
+                    { id: "secondary-aks", label: "Secondary AKS Cluster", type: "box", x: 300, y: 500, width: 180, height: 100, semantic: "compute" },
+                    { id: "tertiary-aks", label: "DR AKS Cluster", type: "box", x: 550, y: 500, width: 180, height: 100, semantic: "compute" },
+                    { id: "acr", label: "Container Registry", type: "box", x: 800, y: 300, width: 150, height: 80, semantic: "storage" },
+                ],
+                edges: [
+                    { from: "dev-team", to: "git-repo", label: "push configs", type: "data" },
+                    { from: "git-repo", to: ["primary-gitops", "secondary-gitops", "tertiary-gitops"], label: "webhook trigger", type: "control" },
+                    { from: ["primary-gitops", "secondary-gitops", "tertiary-gitops"], to: ["primary-aks", "secondary-aks", "tertiary-aks"], label: "apply manifests", type: "deployment" },
+                    { from: ["primary-aks", "secondary-aks", "tertiary-aks"], to: "acr", label: "pull container images", type: "data" },
+                ]
+            },
+            "networking": {
+                nodes: [
+                    { id: "traffic-mgmt", label: "Traffic Manager", type: "box", x: 400, y: 30, width: 200, height: 60, semantic: "platform" },
+                    { id: "primary-vnet", label: "Primary VNet", type: "boundary", x: 50, y: 150, width: 250, height: 300, semantic: "infrastructure" },
+                    { id: "secondary-vnet", label: "Secondary VNet", type: "boundary", x: 350, y: 150, width: 250, height: 300, semantic: "infrastructure" },
+                    { id: "tertiary-vnet", label: "DR VNet", type: "boundary", x: 650, y: 150, width: 250, height: 300, semantic: "infrastructure" },
+                    { id: "primary-aks", label: "AKS Cluster", type: "box", x: 70, y: 200, width: 210, height: 100, semantic: "compute" },
+                    { id: "secondary-aks", label: "AKS Cluster", type: "box", x: 370, y: 200, width: 210, height: 100, semantic: "compute" },
+                    { id: "tertiary-aks", label: "AKS Cluster", type: "box", x: 670, y: 200, width: 210, height: 100, semantic: "compute" },
+                    { id: "nsg", label: "Network Security Groups", type: "box", x: 50, y: 550, width: 850, height: 60, semantic: "security" },
+                    { id: "apigw", label: "API Gateway", type: "box", x: 400, y: 650, width: 200, height: 60, semantic: "platform" },
+                ],
+                edges: [
+                    { from: "traffic-mgmt", to: ["primary-aks", "secondary-aks"], label: "active-active", type: "infrastructure" },
+                    { from: "traffic-mgmt", to: "tertiary-aks", label: "failover", type: "infrastructure" },
+                    { from: "primary-vnet", to: "secondary-vnet", label: "VNet Peering", type: "infrastructure" },
+                    { from: "secondary-vnet", to: "tertiary-vnet", label: "VNet Peering", type: "infrastructure" },
+                    { from: "nsg", to: ["primary-vnet", "secondary-vnet", "tertiary-vnet"], label: "secures", type: "security" },
+                    { from: "apigw", to: ["primary-aks", "secondary-aks"], label: "routes", type: "infrastructure" },
+                ]
+            },
+            "security": {
+                nodes: [
+                    { id: "governance", label: "Management Group", type: "box", x: 50, y: 50, width: 200, height: 80, semantic: "platform" },
+                    { id: "policy", label: "Azure Policy", type: "box", x: 300, y: 50, width: 180, height: 80, semantic: "platform" },
+                    { id: "rbac", label: "RBAC & Identity", type: "box", x: 550, y: 50, width: 180, height: 80, semantic: "security" },
+                    { id: "keyvault", label: "Key Vault", type: "box", x: 800, y: 50, width: 150, height: 80, semantic: "security" },
+                    { id: "nsg", label: "Network Security", type: "box", x: 50, y: 200, width: 200, height: 80, semantic: "security" },
+                    { id: "monitoring", label: "Security Monitoring", type: "box", x: 300, y: 200, width: 230, height: 80, semantic: "platform" },
+                    { id: "backup", label: "Backup & Recovery", type: "box", x: 650, y: 200, width: 200, height: 80, semantic: "storage" },
+                    { id: "primary-aks", label: "Primary Cluster", type: "box", x: 50, y: 400, width: 200, height: 80, semantic: "compute" },
+                    { id: "secondary-aks", label: "Secondary Cluster", type: "box", x: 300, y: 400, width: 200, height: 80, semantic: "compute" },
+                    { id: "tertiary-aks", label: "DR Cluster", type: "box", x: 550, y: 400, width: 200, height: 80, semantic: "compute" },
+                ],
+                edges: [
+                    { from: "governance", to: ["policy", "rbac"], label: "manages", type: "policy" },
+                    { from: "policy", to: ["primary-aks", "secondary-aks", "tertiary-aks"], label: "enforces", type: "policy" },
+                    { from: ["primary-aks", "secondary-aks", "tertiary-aks"], to: "keyvault", label: "RBAC access", type: "security" },
+                    { from: "rbac", to: ["primary-aks", "secondary-aks", "tertiary-aks"], label: "controls", type: "security" },
+                    { from: "nsg", to: ["primary-aks", "secondary-aks", "tertiary-aks"], label: "filters traffic", type: "security" },
+                    { from: "monitoring", to: ["primary-aks", "secondary-aks", "tertiary-aks"], label: "audits", type: "data" },
+                    { from: ["primary-aks", "secondary-aks"], to: "backup", label: "maintains", type: "data" },
+                ]
+            }
+        };
+
+        const nodeDescriptions = {
+            "azure-subscription": "Top-level Azure resource container. Encompasses all infrastructure, networking, and services deployed across multiple regions.",
+            "governance": "Management Group for policy enforcement, RBAC delegation, and compliance across all clusters and regions.",
+            "primary-region": "Production region (East US) hosting active AKS clusters with GitOps-driven workload management.",
+            "secondary-region": "Secondary region (West US) for high availability and cross-region failover with identical cluster configuration.",
+            "tertiary-region": "Disaster recovery region (Central US) with standby AKS cluster for recovery point objective (RPO) compliance.",
+            "primary-aks": "Kubernetes cluster running production workloads. Node pools segregate system and application workloads.",
+            "secondary-aks": "Standby cluster synchronized via GitOps. Active-active or active-passive depending on traffic distribution.",
+            "tertiary-aks": "Disaster recovery cluster with latest backed-up state. Activated on primary/secondary failure.",
+            "primary-gitops": "Flux CD controller reconciling cluster state with Git repository. Continuous deployment automation.",
+            "git-repo": "Single source of truth for all cluster configurations, manifests, and GitOps policies. Git commits trigger continuous reconciliation.",
+            "acr": "Azure Container Registry storing container images. Integrated with AKS for secure, fast image pulls.",
+            "traffic-mgmt": "Azure Traffic Manager directing traffic across regions based on health checks and routing policies.",
+            "keyvault": "Centralized secrets management. AKS accesses credentials, certificates, and API keys via RBAC-managed workload identity.",
+            "monitoring": "Azure Monitor and Log Analytics collecting metrics, logs, and traces from all clusters and applications.",
+            "nsg": "Network Security Groups enforcing micro-segmentation and network policies across VNets and subnets.",
+            "apigw": "API Gateway providing consistent API endpoints, rate limiting, and request routing to AKS services.",
+            "backup": "Azure Backup protecting persistent volumes and cluster data with automated backup policies.",
+            "primary-gitops": "Flux operator continuously monitoring Git repository and applying configuration changes to the cluster.",
+            "policy": "Azure Policy and Kubernetes Pod Security Policies enforcing compliance and security standards.",
+            "rbac": "Role-Based Access Control restricting cluster access based on identity and Kubernetes RBAC rules."
+        };
+
+        let currentView = "full-stack";
+        const canvas = document.getElementById('canvas');
+
+        function drawArchitecture(view) {
+            canvas.innerHTML = '<defs><marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><polygon points="0 0, 10 3, 0 6" fill="#999" /></marker></defs>';
+
+            const data = architecture[view];
+
+            // Draw edges first (so they appear behind nodes)
+            data.edges.forEach(edge => {
+                const fromNode = data.nodes.find(n => n.id === edge.from || (Array.isArray(edge.from) && edge.from.includes(n.id)));
+                const toNodes = Array.isArray(edge.to) ? edge.to : [edge.to];
+
+                toNodes.forEach(toId => {
+                    const toNode = data.nodes.find(n => n.id === toId);
+                    if (fromNode && toNode) {
+                        drawEdge(fromNode, toNode, edge.label, edge.type);
+                    }
+                });
+            });
+
+            // Draw nodes
+            data.nodes.forEach(node => {
+                drawNode(node);
+            });
+        }
+
+        function drawNode(node) {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('class', `node ${node.semantic}`);
+            g.setAttribute('data-id', node.id);
+
+            if (node.type === 'boundary') {
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', node.x);
+                rect.setAttribute('y', node.y);
+                rect.setAttribute('width', node.width);
+                rect.setAttribute('height', node.height);
+                rect.setAttribute('rx', 4);
+                rect.setAttribute('fill', 'none');
+                rect.setAttribute('stroke', '#666');
+                rect.setAttribute('stroke-dasharray', '5,5');
+                rect.setAttribute('stroke-width', 2);
+                g.appendChild(rect);
+            } else {
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', node.x);
+                rect.setAttribute('y', node.y);
+                rect.setAttribute('width', node.width);
+                rect.setAttribute('height', node.height);
+                rect.setAttribute('rx', 4);
+                g.appendChild(rect);
+            }
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', node.x + node.width / 2);
+            text.setAttribute('y', node.y + node.height / 2 + 5);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('class', 'node-text');
+            text.textContent = node.label;
+            g.appendChild(text);
+
+            g.onclick = (e) => {
+                e.stopPropagation();
+                showInfo(node.id, node.label);
+            };
+
+            canvas.appendChild(g);
+        }
+
+        function drawEdge(fromNode, toNode, label, type) {
+            const x1 = fromNode.x + fromNode.width / 2;
+            const y1 = fromNode.y + fromNode.height / 2;
+            const x2 = toNode.x + toNode.width / 2;
+            const y2 = toNode.y + toNode.height / 2;
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x1);
+            line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2);
+            line.setAttribute('y2', y2);
+            line.setAttribute('class', `edge ${type || ''}`);
+            canvas.appendChild(line);
+
+            if (label) {
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2;
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', midX);
+                text.setAttribute('y', midY - 5);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('class', 'edge-label');
+                text.textContent = label;
+                canvas.appendChild(text);
+            }
+        }
+
+        function switchView(viewName) {
+            currentView = viewName;
+            document.querySelectorAll('.view-selector button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            closeInfo();
+            drawArchitecture(viewName);
+        }
+
+        function showInfo(nodeId, label) {
+            const panel = document.getElementById('infoPanel');
+            document.getElementById('infoTitle').textContent = label;
+            document.getElementById('infoDesc').textContent = nodeDescriptions[nodeId] || 'Component of the AKS landing zone architecture.';
+            panel.classList.add('visible');
+        }
+
+        function closeInfo() {
+            document.getElementById('infoPanel').classList.remove('visible');
+        }
+
+        // Initial draw
+        drawArchitecture('full-stack');
+    </script>
+</body>
+</html>
