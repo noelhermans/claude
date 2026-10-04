@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Release Flow AI Map</title>
+<style>
+:root {
+  --bg: #f6f6f4; --surface: #ffffff; --ink: #1c1c1f; --muted: #66666d; --line: #d8d8de;
+  --lane-a: #fbfbfa; --lane-b: #f1f1ef; --edge: #74747f;
+  --ai-fill: #efe9ff; --ai-stroke: #6a4bd6;
+  --hitl-fill: #fff1d6; --hitl-stroke: #b87200;
+  --auto-fill: #e3f4ea; --auto-stroke: #2c8754;
+  --human-fill: #eeeef1; --human-stroke: #85858e;
+  --block: #cf3434; --block-ink: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131315; --surface: #1c1c20; --ink: #ececf0; --muted: #a2a2ab; --line: #33333a;
+    --lane-a: #18181b; --lane-b: #1f1f23; --edge: #8c8c98;
+    --ai-fill: #2a2348; --ai-stroke: #a58bff;
+    --hitl-fill: #3a2b10; --hitl-stroke: #f0ad3e;
+    --auto-fill: #13301f; --auto-stroke: #4cc184;
+    --human-fill: #26262b; --human-stroke: #8d8d96;
+    --block: #ff6b6b; --block-ink: #1a0b0b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131315; --surface: #1c1c20; --ink: #ececf0; --muted: #a2a2ab; --line: #33333a;
+  --lane-a: #18181b; --lane-b: #1f1f23; --edge: #8c8c98;
+  --ai-fill: #2a2348; --ai-stroke: #a58bff;
+  --hitl-fill: #3a2b10; --hitl-stroke: #f0ad3e;
+  --auto-fill: #13301f; --auto-stroke: #4cc184;
+  --human-fill: #26262b; --human-stroke: #8d8d96;
+  --block: #ff6b6b; --block-ink: #1a0b0b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1440px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 16px; max-width: 900px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; }
+.chip[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px; }
+.chip b { font-variant-numeric: tabular-nums; }
+.sw { width: 14px; height: 14px; border-radius: 4px; border: 2px solid; flex: none; }
+.sw.ai { background: var(--ai-fill); border-color: var(--ai-stroke); }
+.sw.hitl { background: var(--hitl-fill); border-color: var(--hitl-stroke); }
+.sw.auto { background: var(--auto-fill); border-color: var(--auto-stroke); }
+.sw.human { background: var(--human-fill); border-color: var(--human-stroke); }
+.sw.blocked { background: transparent; border-color: var(--block); border-style: dashed; }
+.canvas { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+.canvas svg { display: block; width: 100%; min-width: 1180px; height: auto; }
+svg text { fill: var(--ink); font-family: inherit; }
+.lane-a { fill: var(--lane-a); } .lane-b { fill: var(--lane-b); }
+.lane-sep { stroke: var(--line); }
+.lane-label { font-size: 12.5px; font-weight: 600; }
+.lane-note { font-size: 10.5px; fill: var(--muted); }
+.phase rect { fill: none; stroke: var(--line); }
+.phase text { font-size: 12px; font-weight: 600; }
+.phase .pn { font-weight: 400; fill: var(--muted); font-size: 10.5px; }
+.edge { fill: none; stroke: var(--edge); stroke-width: 1.6; }
+.edge.fail { stroke: var(--block); stroke-dasharray: 5 4; }
+.mk { fill: var(--edge); } .mk.fail { fill: var(--block); }
+.elabel { font-size: 10.5px; fill: var(--muted); }
+.elabel.fail { fill: var(--block); }
+.node { cursor: pointer; transition: opacity .15s; }
+.node rect.box { stroke-width: 2; }
+.node.ai rect.box { fill: var(--ai-fill); stroke: var(--ai-stroke); }
+.node.hitl rect.box { fill: var(--hitl-fill); stroke: var(--hitl-stroke); }
+.node.auto rect.box { fill: var(--auto-fill); stroke: var(--auto-stroke); }
+.node.human rect.box { fill: var(--human-fill); stroke: var(--human-stroke); }
+.node.blocked rect.ring { fill: none; stroke: var(--block); stroke-width: 1.6; stroke-dasharray: 5 3; }
+.node .id { font-size: 10.5px; font-weight: 700; }
+.node .t { font-size: 11.5px; text-anchor: middle; }
+.node .ft { font-size: 9.5px; fill: var(--muted); }
+.node .badge rect { fill: var(--block); }
+.node .badge text { fill: var(--block-ink); font-size: 9px; font-weight: 700; text-anchor: middle; }
+.node.sel rect.box { stroke-width: 3.5; }
+.node:focus { outline: none; } .node:focus-visible rect.box { stroke-width: 3.5; }
+.dim { opacity: .18; }
+.panel { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.panel h2 { font-size: 16px; margin: 0 0 8px; }
+.panel dl { display: grid; grid-template-columns: 140px 1fr; gap: 6px 14px; margin: 0; }
+.panel dt { color: var(--muted); } .panel dd { margin: 0; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-right: 4px; border: 1.5px solid; }
+.tag.ai { background: var(--ai-fill); border-color: var(--ai-stroke); }
+.tag.hitl { background: var(--hitl-fill); border-color: var(--hitl-stroke); }
+.tag.auto { background: var(--auto-fill); border-color: var(--auto-stroke); }
+.tag.human { background: var(--human-fill); border-color: var(--human-stroke); }
+.tag.blk { background: var(--block); border-color: var(--block); color: var(--block-ink); }
+.hint { color: var(--muted); margin: 0; }
+h3 { font-size: 15px; margin: 24px 0 8px; }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 860px; font-size: 13px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+td:first-child, td:nth-child(3), td:nth-child(4) { white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+tr.dim { opacity: .3; }
+tbody tr { cursor: pointer; }
+.notes { color: var(--muted); font-size: 13px; }
+.notes li { margin-bottom: 4px; }
+code { font-size: 12px; }
+@media (max-width: 640px) { .panel dl { grid-template-columns: 1fr; } .panel dt { margin-top: 6px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Release management: as-is flow with AI framing</h1>
+  <p class="sub">Shared AKS platform (~90 clusters, 3 regions, DEV → PRE-PROD → PROD). Each step is coloured by who would own it in an AI-driven release runbook. A dashed red outline means the step cannot be handed to an agent yet, because the documentation or tests it depends on do not exist. Click a step or a filter for details.</p>
+
+  <div class="chips" id="chips"></div>
+  <div class="canvas"><svg id="dia" viewBox="0 0 1760 700" role="img" aria-labelledby="dia-title"><title id="dia-title">Release flow swimlane diagram with AI agent, SRE human-in-the-loop, automated and blocked steps</title></svg></div>
+
+  <section class="panel" id="panel" aria-live="polite"><p class="hint">Select a step to see what happens today, what an agent could take over, where SRE stays in the loop and what is blocking it.</p></section>
+
+  <h3>Step inventory</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>ID</th><th>Step</th><th>Target owner</th><th>Blocked by</th><th>Repetition</th><th>Today</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+
+  <h3>Reading notes</h3>
+  <ul class="notes">
+    <li>Source: <code>release-process-asis-prompt.md</code> (platform context and SRE answers). Anything not stated there is marked <b>[ASSUMPTION]</b> or <b>[DATA NEEDED]</b> in the step details.</li>
+    <li>Phase 2 (config PR, change request, approval, merge) is repeated for <b>every promotion</b>: dev-cluster1 → all DEV → PRE-PROD → PROD, and within PRE-PROD and PROD by each regional SRE team (EU, US, APAC). This repetition drives most of the rollout effort and the "steps easily overlooked" problem.</li>
+    <li>Every AI agent candidate is currently blocked. Agents need written acceptance criteria and runnable tests before they can do work that SRE now does by judgement ("looks OK").</li>
+  </ul>
+</main>
+<script>
+const COL = [170, 330, 490, 650, 810, 970, 1130, 1290, 1450, 1610];
+const ROW = { PO: 73, PE: 188, ST: 290, SB: 390, CM: 483, FX: 593 };
+const W = 136, H = 64;
+const TYPE = {
+  ai:    { label: 'AI agent',        long: 'AI agent candidate' },
+  hitl:  { label: 'SRE HITL',        long: 'Human-in-the-loop (approval / investigation / escalation)' },
+  auto:  { label: 'Auto',            long: 'Automated today' },
+  human: { label: 'Human',           long: 'Human, outside the release runbook' }
+};
+const verify = (where, extra) => ({
+  today: `SRE checks ${where} by eye ("looks OK"). There are no written acceptance criteria and no automated post-deploy tests.${extra || ''}`,
+  ai: 'Agent runs post-deploy tests, observes health, alerts and Flux status across the clusters, and reports a go/no-go recommendation with evidence.',
+  hitl: 'SRE decides go/no-go for the next stage based on the agent report.',
+  why: { docs: 'No documented definition of "healthy" per component (expected state, signals, thresholds).', tests: 'No post-deploy or smoke test suite exists to run.' }
+});
+const S = [
+  { id: 'D-01', c: 0, r: 'PO', l: ['Prioritise change', 'in sprint backlog'], k: 'human', b: [], rep: 'once',
+    today: 'Product Owner prioritises the component change in the 2-week sprint.', ai: 'Out of scope: roadmap decisions stay with the Product Owner.', sys: 'Backlog tool [DATA NEEDED]' },
+  { id: 'D-02', c: 0, r: 'PE', l: ['Develop component,', 'update Helm chart'], k: 'human', b: [], rep: 'once',
+    today: 'Platform Engineering develops the change. Source code is in GitLab and the component is delivered as a Helm chart.', ai: 'Out of scope: development work.', sys: 'GitLab' },
+  { id: 'T-01', c: 1, r: 'PE', l: ['Helm lint +', 'basic goss checks'], k: 'auto', b: [], rep: 'once',
+    today: 'Basic Helm linting and basic goss tests are the only automated tests today. They do not cover features or integration between components.', ai: 'Already automated. An agent can use the results as release evidence.', sys: 'GitLab CI [ASSUMPTION]' },
+  { id: 'T-02', c: 2, r: 'PE', l: ['Feature & integration', 'test (eng cluster)'], k: 'ai', b: ['tests'], rep: 'once',
+    today: 'Platform Engineering has an engineering cluster but no formal test process, so new features and component integration are untested or only partly tested.', ai: 'Agent deploys the release candidate on the engineering cluster, runs the test suite and reports the results.', hitl: 'None at runtime. Failures go back to Platform Engineering.',
+    why: { tests: 'No feature or integration test suite and no pass criteria exist to run.' }, sys: 'Engineering cluster' },
+  { id: 'R-01', c: 3, r: 'PE', l: ['Publish to Nexus +', 'release notes'], k: 'ai', b: ['docs'], rep: 'once',
+    today: 'The chart is published to Nexus and release information is handed to SRE. SRE reports that releases are poorly documented. [ASSUMPTION: release notes are written by hand, with no template.]', ai: 'Agent drafts release notes and rollout instructions from GitLab changes and the chart/values diff.', hitl: 'Platform Engineering reviews the draft.',
+    why: { docs: 'No release-note template or required content (breaking changes, values, prerequisites, verification steps).' }, sys: 'GitLab, Nexus' },
+  { id: 'R-02', c: 4, r: 'ST', l: ['Raise config PR', '(Azure DevOps)'], k: 'ai', b: ['docs'], rep: 'per stage × region',
+    today: 'SRE owns the Azure DevOps config repositories and creates a PR that changes the chart version and values for the target stage.', ai: 'Agent raises the PR for review (a stated goal of the target runbook).', hitl: 'SRE reviews the PR at R-03.',
+    why: { docs: 'Which values change per cluster, region and environment is tacit knowledge. Steps are easily overlooked.' }, sys: 'Azure DevOps Repos' },
+  { id: 'C-01', c: 4, r: 'SB', l: ['Raise change', 'request'], k: 'ai', b: ['tests'], rep: 'per environment',
+    today: '[ASSUMPTION] SRE raises a change request for every environment promotion (classical change management).', ai: 'Agent drafts the change request with scope, cluster list, rollback plan and test evidence.', hitl: 'Approval happens at C-02.',
+    why: { tests: 'There is no test evidence to attach, so the risk assessment relies on judgement.' }, sys: 'Change management tool [DATA NEEDED]' },
+  { id: 'C-02', c: 4, r: 'CM', l: ['Change approval', '(per environment)'], k: 'hitl', b: [], rep: 'per environment',
+    today: 'Every environment promotion goes through classical change management approval. [DATA NEEDED: board cadence and lead time.]', ai: 'Stays human. An agent can prepare the evidence pack.', hitl: 'Approval: the change authority decides go/no-go per environment.', sys: 'Change management tool [DATA NEEDED]' },
+  { id: 'R-03', c: 5, r: 'ST', l: ['Peer review,', 'approve & merge PR'], k: 'hitl', b: [], rep: 'per PR',
+    today: 'SRE peer-reviews and approves the config PR, then merges it. This is the only sign-off gate stated by SRE.', ai: 'The review stays human. An agent may perform the merge once both approvals are in.', hitl: 'Approval: SRE reviewer.', sys: 'Azure DevOps Repos' },
+  { id: 'P-01', c: 6, r: 'FX', l: ['Flux sync →', 'dev-cluster1'], k: 'auto', b: [], rep: '1 cluster',
+    today: 'Flux (AKS extension) reconciles the merged config to the first DEV cluster.', ai: 'Already automated. An agent watches reconciliation status.', sys: 'Flux, AKS' },
+  Object.assign({ id: 'P-02', c: 6, r: 'SB', l: ['Verify dev-cluster1', '("looks OK")'], k: 'ai', b: ['docs', 'tests'], rep: '1 cluster', sys: 'AKS, monitoring [DATA NEEDED]' }, verify('dev-cluster1')),
+  { id: 'P-03', c: 7, r: 'FX', l: ['Flux sync →', 'all DEV clusters'], k: 'auto', b: [], rep: 'per DEV cluster',
+    today: 'Flux reconciles the config to the remaining DEV clusters. [DATA NEEDED: number of DEV clusters and how Flux targets them.]', ai: 'Already automated. An agent watches reconciliation status.', sys: 'Flux, AKS' },
+  Object.assign({ id: 'P-04', c: 7, r: 'SB', l: ['Verify DEV', 'clusters'], k: 'ai', b: ['docs', 'tests'], rep: 'per DEV cluster', sys: 'AKS, monitoring [DATA NEEDED]' }, verify('the DEV clusters')),
+  { id: 'P-05', c: 8, r: 'FX', l: ['Flux sync →', 'PRE-PROD (staging)'], k: 'auto', b: [], rep: 'per region × cluster',
+    today: 'Flux reconciles to PRE-PROD. Each regional SRE team (EU, US, APAC) promotes the clusters in its own region.', ai: 'Already automated. An agent watches reconciliation status.', sys: 'Flux, AKS' },
+  Object.assign({ id: 'P-06', c: 8, r: 'SB', l: ['Verify PRE-PROD', 'per region'], k: 'ai', b: ['docs', 'tests'], rep: 'per region × cluster', sys: 'AKS, monitoring [DATA NEEDED]' }, verify('the PRE-PROD clusters in its region')),
+  { id: 'P-07', c: 9, r: 'FX', l: ['Flux sync →', 'PROD'], k: 'auto', b: [], rep: 'per region × cluster',
+    today: 'Flux reconciles to PROD, region by region, by the owning regional SRE team.', ai: 'Already automated. An agent watches reconciliation status.', sys: 'Flux, AKS' },
+  Object.assign({ id: 'P-08', c: 9, r: 'SB', l: ['Verify PROD', 'per region'], k: 'ai', b: ['docs', 'tests'], rep: 'per region × cluster', sys: 'AKS, monitoring [DATA NEEDED]' }, verify('the PROD clusters in its region', ' Most failures are first discovered here.')),
+  { id: 'I-01', c: 9, r: 'ST', l: ['Detect failure', '(mostly in PROD)'], k: 'ai', b: ['docs', 'tests'], rep: 'per incident',
+    today: 'Failures are mostly discovered by SRE during the PROD rollout. They can also surface at any earlier verify step.', ai: 'Agent observes rollout effects across clusters, flags failed reconciliations and anomalies, and attaches context (diff, affected tenants, logs).', hitl: 'SRE confirms that the signal is a real failure.',
+    why: { docs: 'No documented expected state per component, so a failure is judged case by case.', tests: 'No automated checks to signal a regression.' }, sys: 'Flux, AKS, monitoring [DATA NEEDED]' },
+  { id: 'I-02', c: 8, r: 'ST', l: ['Investigate, roll back,', 'escalate to PE'], k: 'hitl', b: ['docs'], rep: 'per incident',
+    today: 'SRE investigates, [ASSUMPTION] rolls back via a config revert, and escalates to Platform Engineering.', ai: 'Agent gathers evidence and prepares the rollback PR. SRE decides.', hitl: 'Investigation and escalation stay with SRE.',
+    why: { docs: 'No documented rollback or escalation runbook per component [DATA NEEDED].' }, sys: 'Azure DevOps, incident tool [DATA NEEDED]' },
+  { id: 'I-03', c: 8, r: 'PE', l: ['Build hotfix', '(days–weeks)'], k: 'human', b: [], rep: 'per incident',
+    today: 'Platform Engineering builds a hotfix, which takes days to weeks. The fix re-enters testing and the full rollout from the start.', ai: 'Out of scope: development work.', sys: 'GitLab, Nexus' }
+];
+const EDGES = [
+  ['M238,137 V188'], ['M306,220 H330'], ['M466,220 H490'], ['M626,220 H650'],
+  ['M786,220 H798 V322 H810', 'handover', 804, 280],
+  ['M946,322 H970'], ['M878,354 V390'], ['M878,454 V483'],
+  ['M946,515 H1004 V354', 'approved', 1010, 440],
+  ['M1072,354 V625 H1130', 'merge', 1078, 520],
+  ['M1198,593 V454'], ['M1266,422 H1278 V625 H1290'],
+  ['M1358,593 V454'], ['M1426,422 H1438 V625 H1450'],
+  ['M1518,593 V454'], ['M1586,422 H1598 V625 H1610'],
+  ['M1678,593 V454'],
+  ['M1678,390 V354', null, 0, 0, 1], ['M1610,322 H1586', null, 0, 0, 1], ['M1518,290 V252', null, 0, 0, 1],
+  ['M1518,188 V168 H398 V188', 'hotfix re-enters test and the full rollout (days–weeks)', 820, 163, 1]
+];
+const LANES = [
+  ['Product Owner', '', 56, 150], ['Platform Engineering', 'GitLab · Nexus', 150, 270],
+  ['SRE', '3 regional teams: EU · US · APAC', 270, 470], ['Change Management', 'per environment', 470, 560],
+  ['Flux GitOps → AKS', '~90 clusters', 560, 690]
+];
+const PHASES = [
+  [160, 796, '1 · Build & test', 'Platform Engineering'],
+  [800, 1116, '2 · Release prep & approval', 'repeated for every promotion'],
+  [1120, 1756, '3 · Staged rollout', 'dev-cluster1 → all DEV → PRE-PROD → PROD, per region']
+];
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs, parent, text) => {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+};
+const svg = document.getElementById('dia');
+const defs = el('defs', {}, svg);
+for (const [id, cls] of [['arr', 'mk'], ['arrf', 'mk fail']]) {
+  const m = el('marker', { id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, defs);
+  el('path', { d: 'M0,0 L10,5 L0,10 z', class: cls }, m);
+}
+LANES.forEach(([name, note, y0, y1], i) => {
+  el('rect', { x: 0, y: y0, width: 1760, height: y1 - y0, class: i % 2 ? 'lane-b' : 'lane-a' }, svg);
+  el('line', { x1: 0, x2: 1760, y1: y1, y2: y1, class: 'lane-sep' }, svg);
+  const cy = (y0 + y1) / 2;
+  el('text', { x: 14, y: note ? cy - 3 : cy + 4, class: 'lane-label' }, svg, name);
+  if (note) el('text', { x: 14, y: cy + 13, class: 'lane-note' }, svg, note);
+});
+el('line', { x1: 154, x2: 154, y1: 56, y2: 690, class: 'lane-sep' }, svg);
+el('line', { x1: 0, x2: 1760, y1: 56, y2: 56, class: 'lane-sep' }, svg);
+PHASES.forEach(([x0, x1, t, n]) => {
+  const g = el('g', { class: 'phase' }, svg);
+  el('rect', { x: x0, y: 8, width: x1 - x0, height: 40, rx: 8 }, g);
+  el('text', { x: x0 + 12, y: 25 }, g, t);
+  el('text', { x: x0 + 12, y: 40, class: 'pn' }, g, n);
+});
+EDGES.forEach(([d, label, lx, ly, fail]) => {
+  el('path', { d, class: 'edge' + (fail ? ' fail' : ''), 'marker-end': `url(#${fail ? 'arrf' : 'arr'})` }, svg);
+  if (label) el('text', { x: lx, y: ly, class: 'elabel' + (fail ? ' fail' : '') }, svg, label);
+});
+const nodes = {};
+S.forEach(s => {
+  const x = COL[s.c], y = ROW[s.r];
+  const g = el('g', { class: `node ${s.k}${s.b.length ? ' blocked' : ''}`, tabindex: 0, role: 'button',
+    'aria-label': `${s.id} ${s.l.join(' ')}: ${TYPE[s.k].long}${s.b.length ? ', blocked by missing ' + s.b.join(' and ') : ''}` }, svg);
+  el('rect', { x, y, width: W, height: H, rx: 8, class: 'box' }, g);
+  if (s.b.length) el('rect', { x: x - 4, y: y - 4, width: W + 8, height: H + 8, rx: 11, class: 'ring' }, g);
+  el('text', { x: x + 8, y: y + 14, class: 'id' }, g, s.id);
+  el('text', { x: x + W / 2, y: y + 31, class: 't' }, g, s.l[0]);
+  el('text', { x: x + W / 2, y: y + 45, class: 't' }, g, s.l[1]);
+  el('text', { x: x + 8, y: y + 58, class: 'ft' }, g, TYPE[s.k].label);
+  el('text', { x: x + W - 8, y: y + 58, class: 'ft', 'text-anchor': 'end' }, g, '×' + s.rep.replace(/^per /, '').replace(/^once$/, '1').replace('environment', 'env').replace(/ × /g, '×'));
+  let bx = x + W;
+  [...s.b].reverse().forEach(b => {
+    const label = b.toUpperCase(), bw = label.length * 7 + 10;
+    bx -= bw + 4;
+    const bg = el('g', { class: 'badge' }, g);
+    el('rect', { x: bx, y: y - 9, width: bw, height: 15, rx: 7.5 }, bg);
+    el('text', { x: bx + bw / 2, y: y + 1.5 }, bg, label);
+  });
+  g.addEventListener('click', () => select(s.id));
+  g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(s.id); } });
+  nodes[s.id] = g;
+});
+
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const blkTags = s => s.b.length ? s.b.map(b => `<span class="tag blk">${b.toUpperCase()}</span>`).join('') : '—';
+const rows = document.getElementById('rows');
+S.forEach(s => {
+  const tr = document.createElement('tr');
+  tr.dataset.id = s.id;
+  tr.innerHTML = `<td><b>${s.id}</b></td><td>${esc(s.l.join(' '))}</td><td><span class="tag ${s.k}">${TYPE[s.k].label}</span></td><td>${blkTags(s)}</td><td>${esc(s.rep)}</td><td>${esc(s.today)}</td>`;
+  tr.addEventListener('click', () => { select(s.id); document.getElementById('panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+  rows.appendChild(tr);
+});
+
+const panel = document.getElementById('panel');
+let current = null;
+function select(id) {
+  const s = S.find(x => x.id === id);
+  if (current) nodes[current].classList.remove('sel');
+  current = id; nodes[id].classList.add('sel');
+  const why = s.why ? Object.entries(s.why).map(([k, v]) => `<div><span class="tag blk">${k.toUpperCase()}</span> ${esc(v)}</div>`).join('') : 'Nothing is blocking this step.';
+  panel.innerHTML = `<h2>${s.id} · ${esc(s.l.join(' '))} <span class="tag ${s.k}">${TYPE[s.k].long}</span></h2>
+    <dl>
+      <dt>Today</dt><dd>${esc(s.today)}</dd>
+      <dt>AI framing</dt><dd>${esc(s.ai)}</dd>
+      <dt>Human in the loop</dt><dd>${esc(s.hitl || (s.k === 'hitl' ? '' : '—'))}</dd>
+      <dt>Blocked by</dt><dd>${why}</dd>
+      <dt>Repetition</dt><dd>${esc(s.rep)}</dd>
+      <dt>Systems</dt><dd>${esc(s.sys || '—')}</dd>
+    </dl>`;
+}
+
+const FILTERS = [
+  ['all', 'All steps', null, s => true],
+  ['ai', 'AI agent candidate', 'ai', s => s.k === 'ai'],
+  ['hitl', 'SRE human-in-the-loop', 'hitl', s => s.k === 'hitl'],
+  ['blocked', 'Blocked: missing docs / tests', 'blocked', s => s.b.length > 0],
+  ['auto', 'Automated today', 'auto', s => s.k === 'auto'],
+  ['human', 'Human, outside runbook', 'human', s => s.k === 'human']
+];
+const chips = document.getElementById('chips');
+let active = 'all';
+function applyFilter(key) {
+  active = key;
+  const f = FILTERS.find(x => x[0] === key)[3];
+  S.forEach(s => {
+    const on = f(s);
+    nodes[s.id].classList.toggle('dim', !on);
+    rows.querySelector(`tr[data-id="${s.id}"]`).classList.toggle('dim', !on);
+  });
+  chips.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.k === key)));
+  try { localStorage.setItem('release-ai-filter', key); } catch (e) {}
+}
+FILTERS.forEach(([k, label, sw, f]) => {
+  const b = document.createElement('button');
+  b.className = 'chip'; b.dataset.k = k;
+  b.innerHTML = `${sw ? `<span class="sw ${sw}"></span>` : ''}${label} <b>${S.filter(f).length}</b>`;
+  b.addEventListener('click', () => applyFilter(active === k && k !== 'all' ? 'all' : k));
+  chips.appendChild(b);
+});
+let saved = 'all';
+try { saved = localStorage.getItem('release-ai-filter') || 'all'; } catch (e) {}
+applyFilter(FILTERS.some(f => f[0] === saved) ? saved : 'all');
+</script>
+</body>
+</html>
